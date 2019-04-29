@@ -1,0 +1,6 @@
+tmp/
+.terraform/
+aws-auth-cm.yaml
+list.tmp
+dns.json
+cafe-ingress.yaml

@@ -1,0 +1,11 @@
+dist: xenial
+language: minimal
+
+before_install:
+  - sudo apt-get -y update
+  - sudo apt-get -y install zip make wget
+  - docs/install/terraform.sh
+
+install:
+  - make init
+  - make validate
