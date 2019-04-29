@@ -76,7 +76,7 @@ make quickstart WORKER_SIZE=2 AWS_REGION=us-west-2
 | AWS_REGION | Region de AWS | string | `us-east-1` | no |
 | DNS_DOMAIN | Nombre de DNS | string | `punkerside.com` | no |
 | WORKER_TYPE | Tipo de instancia | string | `m5.large` | no |
-| WORKER_PRICE | Precio maximo a pagar | string | `0.045` | no |
+| WORKER_PRICE | Precio maximo a pagar por instancia | string | `0.045` | no |
 | WORKER_SIZE | Numero de workers | `1` | no |
 
 ## Eliminar
