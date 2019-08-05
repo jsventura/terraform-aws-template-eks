@@ -1,6 +1,5 @@
 tmp/
 .terraform/
-aws-auth-cm.yaml
-list.tmp
-dns.json
-cafe-ingress.yaml
+terraform.tfstate
+terraform.tfstate.backup
+.terraform.tfstate.lock.info

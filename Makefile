@@ -1,14 +1,15 @@
-OWNER   = punkerside
+OWNER   = opetech
 PROJECT = eks
-ENV     = lab
+ENV     = demo
 
 AWS_REGION = us-east-1
-DNS_DOMAIN = punkerside.com
-DNS_API    = $(PROJECT).punkerside.com
+DNS_DOMAIN = seidorlab.com
+DNS_API    = $(PROJECT).$(DNS_DOMAIN)
 
-WORKER_TYPE  = m5.large
-WORKER_PRICE = 0.045
-WORKER_SIZE  = 1
+EKS_VERSION  = 1.13
+WORKER_TYPE  = m5a.2xlarge
+WORKER_PRICE = 0.22
+WORKER_SIZE  = 3
 
 quickstart:
 	@make init
@@ -24,94 +25,69 @@ delete:
 	@make elb
 	@make tmps
 
+# validacion de master y nodos
+validation:
+	@echo "Validando master"
+	@kubectl get svc
+	@echo "Validando Nodos"
+	@kubectl get nodes
+
 init:
 	export AWS_DEFAULT_REGION="$(AWS_REGION)" && \
-	cd terraform/ && \
-	terraform init \
-	  -backend-config bucket='$(OWNER)-prod-terraform' \
-	  -backend-config key='state/$(PROJECT)/$(ENV)/terraform.tfstate' \
-	  -backend-config region='us-east-1'
+	cd terraform/ && terraform init
 
 apply:
 	export AWS_DEFAULT_REGION="$(AWS_REGION)" && \
-	cd terraform/ && \
-	terraform apply \
+	cd terraform/ && terraform apply \
 	  -var 'owner=$(OWNER)' \
 	  -var 'project=$(PROJECT)' \
 	  -var 'env=$(ENV)' \
-	  -var 'region=$(AWS_REGION)' \
+	  -var 'eks_version=$(EKS_VERSION)' \
 	  -var 'instance_type=$(WORKER_TYPE)' \
 	  -var 'spot_price=$(WORKER_PRICE)' \
 	  -var 'desired_capacity=$(WORKER_SIZE)' \
 	-auto-approve \
-	-lock-timeout=60s
+	-lock-timeout=300s
+
+configs:
+	@rm -rf ~/.kube/ && rm -rf tmp/aws-auth-cm.yaml && mkdir -p tmp/
+	aws eks --region $(AWS_REGION) update-kubeconfig --name $(OWNER)-$(ENV)
+	$(eval WORKER_ROLE = $(shell cd terraform/ && terraform output role))
+	@cp scripts/aws-auth-cm.yaml tmp/aws-auth-cm.yaml && sed -i 's|WORKER_ROLE|$(WORKER_ROLE)|g' tmp/aws-auth-cm.yaml
+	kubectl apply -f tmp/aws-auth-cm.yaml
+
+addon-dashboard:
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0-beta1/aio/deploy/recommended.yaml
+	kubectl apply -f scripts/eks-admin-service-account.yaml
+	@sh scripts/get.sh
+	@echo "Dashboard instalado"
+
+addon-metrics:
+	@mkdir -p tmp/ && rm -rf tmp/metrics-server/
+	@cd tmp/ && git clone https://github.com/kubernetes-incubator/metrics-server.git
+	kubectl create -f tmp/metrics-server/deploy/1.8+/
+	@echo "Metrics instalado"
+
+addon-ingress:
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/mandatory.yaml
+	kubectl apply -f scripts/service-l7.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/aws/patch-configmap-l7.yaml
+	@echo "Ingress instalado"
+
+demo:
+	@mkdir -p tmp/ && cp -R service/cafe-ingress.yaml tmp/cafe-ingress.yaml && sed -i 's|DNS|$(DNS_API)|g' tmp/cafe-ingress.yaml
+	kubectl create -f service/cafe-service.yaml
+	kubectl create -f tmp/cafe-ingress.yaml
 
 destroy:
 	export AWS_DEFAULT_REGION="$(AWS_REGION)" && \
-	cd terraform/ && \
-	terraform destroy \
+	cd terraform/ && terraform destroy \
 	  -var 'owner=$(OWNER)' \
 	  -var 'project=$(PROJECT)' \
 	  -var 'env=$(ENV)' \
-	  -var 'region=$(AWS_REGION)' \
+	  -var 'eks_version=$(EKS_VERSION)' \
 	  -var 'instance_type=$(WORKER_TYPE)' \
 	  -var 'spot_price=$(WORKER_PRICE)' \
 	  -var 'desired_capacity=$(WORKER_SIZE)' \
 	-auto-approve \
-	-lock-timeout=60s
-
-validate:
-	export AWS_DEFAULT_REGION="$(AWS_REGION)" && \
-	cd terraform/ && \
-	terraform validate -check-variables=true \
-	  -var 'owner=$(OWNER)' \
-	  -var 'project=$(PROJECT)' \
-	  -var 'env=$(ENV)' \
-	  -var 'region=$(AWS_REGION)' \
-	  -var 'instance_type=$(WORKER_TYPE)' \
-	  -var 'spot_price=$(WORKER_PRICE)' \
-	  -var 'desired_capacity=$(WORKER_SIZE)'
-
-configs:
-	@rm -rf ~/.kube/ && rm -rf workers/aws-auth-cm.yaml
-	aws eks --region $(AWS_REGION) update-kubeconfig --name $(OWNER)-$(ENV)
-	$(eval WORKER_ROLE = $(shell cd terraform/ && terraform output role))
-	@cp workers/aws-auth-cm.yaml.original workers/aws-auth-cm.yaml && sed -i 's|WORKER_ROLE|$(WORKER_ROLE)|g' workers/aws-auth-cm.yaml
-	kubectl apply -f workers/aws-auth-cm.yaml
-
-gui:
-	@rm -rf tmp/
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
-	kubectl apply -f dashboard/eks-admin-service-account.yaml && ./dashboard/get.sh
-	@mkdir tmp/ && cd tmp/ && git clone https://github.com/kubernetes-incubator/metrics-server.git
-	kubectl create -f tmp/metrics-server/deploy/1.8+/
-
-ingress-nginx:
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/mandatory.yaml
-	kubectl apply -f ingress/service-l7.yaml
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/provider/aws/patch-configmap-l7.yaml
-
-dns:
-	@rm -rf ingress/dns.json && cp -R ingress/dns.original ingress/dns.json
-	@sed -i 's|DNS_API|$(DNS_API)|g' ingress/dns.json
-	@sh ingress/config.sh $(DNS_DOMAIN) $(AWS_REGION) $(OWNER) $(ENV)
-
-demo:
-	cp -R service/cafe-ingress.yaml.original service/cafe-ingress.yaml && sed -i 's|DNS_API|$(DNS_API)|g' service/cafe-ingress.yaml
-	kubectl create -f service/
-
-update:
-	export AWS_DEFAULT_REGION="$(AWS_REGION)" && \
-	cd terraform/ && \
-	terraform get -update
-
-tmps:
-	$(eval ELB_NAME = $(shell cat list.tmp))
-	aws elb delete-load-balancer --region $(AWS_REGION) --load-balancer-name $(ELB_NAME)
-	@sed -i 's|CREATE|DELETE|g' ingress/dns.json
-	$(eval ZONE_ID = $(shell aws route53 --region us-east-1 list-hosted-zones-by-name --dns-name $(DNS_DOMAIN) --query 'HostedZones[*].[Id]' --output text | cut -d'/' -f3))
-	aws route53 change-resource-record-sets --region $(AWS_REGION) --hosted-zone-id $(ZONE_ID) --change-batch file://ingress/dns.json
-	@rm -rf terraform/.terraform/
-	@rm -rf tmp/
-	@rm -rf ingress/dns.json
-	@rm -rf list.tmp
+	-lock-timeout=300s

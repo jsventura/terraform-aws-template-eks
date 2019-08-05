@@ -1,34 +1,44 @@
----
-apiVersion: autoscaling/v2beta1
-kind: HorizontalPodAutoscaler
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
-  name: coffee-hpa
+  name: coffee
 spec:
-  scaleTargetRef:
-    apiVersion: extensions/v1beta1
-    kind: Deployment
-    name: coffee
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: memory
-      targetAverageValue: 128Mi
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+      - name: coffee
+        image: nginxdemos/hello
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "0.5"
+          limits:
+            memory: "128Mi"
+            cpu: "1"
+
 ---
-apiVersion: autoscaling/v2beta1
-kind: HorizontalPodAutoscaler
+
+apiVersion: v1
+kind: Service
 metadata:
-  name: tea-hpa
+  name: coffee
 spec:
-  scaleTargetRef:
-    apiVersion: extensions/v1beta1
-    kind: Deployment
-    name: tea
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: memory
-      targetAverageValue: 128Mi
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: coffee
+
+---

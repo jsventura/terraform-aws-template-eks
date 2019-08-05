@@ -44,11 +44,19 @@ resource "aws_security_group" "master" {
   vpc_id      = "${data.aws_vpc.this.id}"
 
   ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["${local.myip}"]
+  }
+
+  ingress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["${local.myip}"]
   }
+
   ingress {
     from_port   = 0
     to_port     = 0
@@ -67,15 +75,15 @@ resource "aws_security_group" "master" {
 resource "aws_eks_cluster" "this" {
   name     = "${var.owner}-${var.env}"
   role_arn = "${aws_iam_role.master.arn}"
-  version  = 1.12
+  version  = "${var.eks_version}"
 
   vpc_config {
     security_group_ids     = ["${aws_security_group.master.id}"]
-    subnet_ids             = ["${data.aws_subnet_ids.this.ids}"]
+    subnet_ids             = "${data.aws_subnet_ids.this.ids}"
   }
+  
   depends_on = [
     "aws_iam_role_policy_attachment.master_00",
-    "aws_iam_role_policy_attachment.master_01",
-    "aws_iam_role_policy_attachment.master_02"
+    "aws_iam_role_policy_attachment.master_01"
   ]
 }

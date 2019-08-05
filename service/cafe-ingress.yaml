@@ -1,19 +1,15 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: cafe-ingress-nginx
+  name: coffee-ingress-nginx
   annotations:
     kubernetes.io/ingress.class: "nginx"
 spec:
   rules:
-  - host: DNS_API
+  - host: DNS
     http:
       paths:
-      - path: /tea
-        backend:
-          serviceName: tea-svc
-          servicePort: 80
       - path: /coffee
         backend:
-          serviceName: coffee-svc
+          serviceName: coffee
           servicePort: 80

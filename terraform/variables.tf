@@ -4,3 +4,4 @@ variable "env" {}
 variable "desired_capacity" {}
 variable "instance_type" {}
 variable "spot_price" {}
+variable "eks_version" {}
